@@ -1,12 +1,9 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require('@prisma/client');
-const { Anthropic } = require('@anthropic-ai/sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const prisma = new PrismaClient();
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
 
 async function seedIngredients(ingredientNames) {
   if (!ingredientNames || ingredientNames.length === 0) {
@@ -15,18 +12,20 @@ async function seedIngredients(ingredientNames) {
     process.exit(0);
   }
 
+  if (!process.env.GEMINI_API_KEY) {
+    console.error('❌ Error: GEMINI_API_KEY environment variable not set');
+    process.exit(1);
+  }
+
   console.log(`📝 Fetching nutrition data for: ${ingredientNames.join(', ')}`);
 
   try {
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
-      messages: [
-        {
-          role: 'user',
-          content: `You are a nutrition expert. Provide approximate nutritional data per 100g or 100ml for these ingredients: ${ingredientNames.join(', ')}
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 
-Return ONLY a valid JSON object with this exact structure (no markdown, no extra text):
+    const prompt = `You are a nutrition expert. Provide approximate nutritional data per 100g or 100ml for these ingredients: ${ingredientNames.join(', ')}
+
+Return ONLY a valid JSON object with this exact structure (no markdown, no extra text, no code blocks):
 {
   "<ingredient_name>": {
     "calorias100": <number or null>,
@@ -37,17 +36,21 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
   }
 }
 
-Use null for any values you cannot estimate with reasonable confidence. All numeric values should be in grams for macronutrients and kcal for calories.`,
-        },
-      ],
-    });
+Use null for any values you cannot estimate with reasonable confidence. All numeric values should be in grams for macronutrients and kcal for calories.`;
 
-    const content = message.content[0];
-    if (content.type !== 'text') {
-      throw new Error('Unexpected response type from Claude');
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Clean up the response in case it includes markdown code blocks
+    let cleanedText = text.trim();
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    } else if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.replace(/^```\n?/, '').replace(/\n?```$/, '');
     }
 
-    const nutritionData = JSON.parse(content.text);
+    const nutritionData = JSON.parse(cleanedText);
     console.log('✅ Nutrition data received from AI');
 
     const createdIngredients = [];
