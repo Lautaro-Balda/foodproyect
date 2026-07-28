@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum MeasureUnit {
+  G
+  ML
+  UNIT
+}
+
+model Ingredient {
+  id               String      @id @default(cuid())
+  name             String
+  unit             MeasureUnit
+  quantity         Float
+  calorias100      Float?
+  proteinas100     Float?
+  carbohidratos100 Float?
+  grasas100        Float?
+  fibra100         Float?
+  costoUnitario    Float?
+  proveedor        String?
+  rendimiento      Float?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  recipeItems RecipeItem[]
+
+  @@unique([name])
+}
+
+model Recipe {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  items     RecipeItem[]
+}
+
+model RecipeItem {
+  id           String     @id @default(cuid())
+  recipeId     String
+  ingredientId String
+  quantity     Float
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([recipeId, ingredientId])
+}
