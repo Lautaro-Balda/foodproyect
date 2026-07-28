@@ -14,7 +14,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
+    "openai": "^4.52.0",
     "@prisma/client": "^6.9.0",
     "next": "^15.3.3",
     "react": "^19.1.0",

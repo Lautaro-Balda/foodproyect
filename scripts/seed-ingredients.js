@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 const { PrismaClient } = require('@prisma/client');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const OpenAI = require('openai');
 
 const prisma = new PrismaClient();
 
@@ -12,16 +12,18 @@ async function seedIngredients(ingredientNames) {
     process.exit(0);
   }
 
-  if (!process.env.GEMINI_API_KEY) {
-    console.error('❌ Error: GEMINI_API_KEY environment variable not set');
+  if (!process.env.GROQ_API_KEY) {
+    console.error('❌ Error: GROQ_API_KEY environment variable not set');
     process.exit(1);
   }
 
   console.log(`📝 Fetching nutrition data for: ${ingredientNames.join(', ')}`);
 
   try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const client = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
 
     const prompt = `You are a nutrition expert. Provide approximate nutritional data per 100g or 100ml for these ingredients: ${ingredientNames.join(', ')}
 
@@ -38,12 +40,24 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 
 Use null for any values you cannot estimate with reasonable confidence. All numeric values should be in grams for macronutrients and kcal for calories.`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const message = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    const textContent = message.choices[0].message.content;
+    if (!textContent) {
+      throw new Error('No content in response from Groq');
+    }
 
     // Clean up the response in case it includes markdown code blocks
-    let cleanedText = text.trim();
+    let cleanedText = textContent.trim();
     if (cleanedText.startsWith('```json')) {
       cleanedText = cleanedText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     } else if (cleanedText.startsWith('```')) {

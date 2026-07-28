@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import { NextRequest, NextResponse } from 'next/server';
 
 interface NutritionData {
@@ -20,15 +20,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!process.env.GEMINI_API_KEY) {
+    if (!process.env.GROQ_API_KEY) {
       return NextResponse.json(
-        { error: 'GEMINI_API_KEY not configured' },
+        { error: 'GROQ_API_KEY not configured' },
         { status: 500 }
       );
     }
 
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const client = new OpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
 
     const ingredientNames = ingredients
       .map((ing: string | { name: string }) => typeof ing === 'string' ? ing : ing.name)
@@ -49,12 +51,24 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 
 Use null for any values you cannot estimate with reasonable confidence. All numeric values should be in grams for macronutrients and kcal for calories.`;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const message = await client.messages.create({
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
+
+    const content = message.content[0];
+    if (content.type !== 'text') {
+      throw new Error('Unexpected response type from Groq');
+    }
 
     // Clean up the response in case it includes markdown code blocks
-    let cleanedText = text.trim();
+    let cleanedText = content.text.trim();
     if (cleanedText.startsWith('```json')) {
       cleanedText = cleanedText.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     } else if (cleanedText.startsWith('```')) {
@@ -65,7 +79,7 @@ Use null for any values you cannot estimate with reasonable confidence. All nume
 
     return NextResponse.json(nutritionData);
   } catch (error) {
-    console.error('Error calling Google Gemini API:', error);
+    console.error('Error calling Groq API:', error);
     return NextResponse.json(
       { error: 'Failed to fetch nutrition data from AI' },
       { status: 500 }
