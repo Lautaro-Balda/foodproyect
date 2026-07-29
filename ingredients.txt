@@ -1,0 +1,40 @@
+﻿leche
+huevos
+pan
+queso
+jamón
+manteca
+yogur
+avena
+café
+té
+azúcar
+sal
+pimienta
+aceite
+aceite de oliva
+arroz
+fideos
+harina
+lentejas
+garbanzos
+pollo
+carne picada
+carne vacuna
+atún
+papas
+batatas
+cebollas
+ajo
+tomates
+lechuga
+zanahorias
+morrones
+zapallito
+brócoli
+espinaca
+pepino
+limón
+manzanas
+bananas
+naranjas
